@@ -33,10 +33,7 @@ export class WebflowClient {
         isDraft: !this.config.webflow.publishImmediately,
         fieldData: {
           'name': pressRelease.title,
-          'slug': this.generateSlug(pressRelease.title),
-          'date': this.formatDate(pressRelease.publishDate),
-          'content': pressRelease.content,
-          'read-more-link': pressRelease.url
+          'slug': this.generateSlug(pressRelease.title)
         }
       };
 
@@ -141,8 +138,9 @@ export class WebflowClient {
    */
   async testConnection() {
     try {
-      await this.getCollectionInfo();
+      const collectionInfo = await this.getCollectionInfo();
       this.logger.info('Webflow connection test successful');
+      this.logger.info('Available fields in collection:', collectionInfo.fields?.map(f => f.slug) || 'No fields info');
       return true;
     } catch (error) {
       this.logger.error('Webflow connection test failed:', error.message);
