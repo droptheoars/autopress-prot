@@ -40,6 +40,12 @@ export class WebflowClient {
         }
       };
 
+      this.logger.info(`Creating item with data:`, {
+        isDraft: itemData.isDraft,
+        title: itemData.fieldData.name,
+        date: itemData.fieldData.date
+      });
+
       const response = await axios.post(
         `${this.baseUrl}/collections/${this.collectionId}/items`,
         itemData,
@@ -50,7 +56,11 @@ export class WebflowClient {
       );
 
       const createdItem = response.data;
-      this.logger.info(`Successfully created item: ${createdItem.id}`);
+      this.logger.info(`Successfully created Webflow item:`, {
+        id: createdItem.id,
+        isDraft: createdItem.isDraft,
+        status: 'created'
+      });
 
       // Publish immediately if configured to do so
       if (this.config.webflow.publishImmediately && createdItem.id) {

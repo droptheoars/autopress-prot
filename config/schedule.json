@@ -13,7 +13,7 @@
     "retryDelayMs": 2000
   },
   "webflow": {
-    "publishImmediately": true,
+    "publishImmediately": false,
     "retryAttempts": 3,
     "retryDelayMs": 1000
   },

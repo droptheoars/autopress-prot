@@ -118,7 +118,10 @@ class PressReleaseAutomation {
       this.logger.info(`Found ${newReleases.length} new press releases to process`);
 
       // Create items in Webflow
+      this.logger.info(`Attempting to create ${newReleases.length} items in Webflow CMS`);
       const results = await this.webflow.createItems(newReleases);
+      
+      this.logger.info(`Webflow results: ${results.created.length} created, ${results.skipped.length} skipped, ${results.errors.length} errors`);
 
       // Update processed data
       const updatedProcessedData = {
