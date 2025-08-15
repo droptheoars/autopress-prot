@@ -92,18 +92,25 @@ export class EuronextScraper {
       const cutoffDateStr = this.config.euronext.onlyAfterDate || "2025-06-19";
       const cutoffDate = new Date(cutoffDateStr);
 
+      // Log first few releases for debugging
+      this.logger.info(`First 5 releases with dates:`, releases.slice(0, 5).map(r => ({
+        title: r.title.substring(0, 50),
+        dateText: r.dateText,
+        rawDate: r.rawDate
+      })));
+
       const recentReleases = releases.filter(release => {
         try {
           const releaseDate = new Date(release.rawDate || release.dateText);
           if (!isNaN(releaseDate.getTime())) {
             const isAfterCutoff = releaseDate >= cutoffDate;
-            this.logger.debug(`Release "${release.title}" (${release.rawDate}) - After ${cutoffDateStr}? ${isAfterCutoff}`);
+            this.logger.info(`Release "${release.title.substring(0, 50)}" (${release.rawDate}) parsed as ${releaseDate.toISOString()} - After ${cutoffDateStr}? ${isAfterCutoff}`);
             return isAfterCutoff;
+          } else {
+            this.logger.warn(`Invalid date for "${release.title.substring(0, 50)}": "${release.rawDate}" could not be parsed`);
           }
         } catch (error) {
-          this.logger.warn(`Could not parse date for "${release.title}": ${release.rawDate}`);
-          // If we can't parse the date, exclude it to be safe
-          return false;
+          this.logger.warn(`Could not parse date for "${release.title.substring(0, 50)}": ${release.rawDate}`);
         }
         return false; // Exclude if date parsing fails
       });
