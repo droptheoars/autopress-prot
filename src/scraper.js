@@ -75,19 +75,34 @@ export class EuronextScraper {
             }
           }
           
-          if (title && title.length > 10 && (link || title.includes('PROTECTOR') || title.includes('GENERAL MEETING'))) {
+          if (title && title.length > 10) {
             foundReleases = true;
             releases.push({
               title,
               dateText: dateText || 'Unknown date',
               url: link ? (link.startsWith('http') ? link : `${this.config.euronext.baseUrl}${link}`) : '#',
-              id: generateReleaseId(title, dateText || 'unknown')
+              id: generateReleaseId(title, dateText || 'unknown'),
+              rawDate: dateText // Keep for sorting
             });
           }
         });
       }
 
-      this.logger.info(`Found ${releases.length} press releases`);
+      // Sort releases by date (newest first) - try to parse dates for better sorting
+      releases.sort((a, b) => {
+        try {
+          const dateA = new Date(a.rawDate || a.dateText);
+          const dateB = new Date(b.rawDate || b.dateText);
+          if (!isNaN(dateA.getTime()) && !isNaN(dateB.getTime())) {
+            return dateB.getTime() - dateA.getTime(); // Newest first
+          }
+        } catch (error) {
+          // Fallback to string comparison if date parsing fails
+        }
+        return (b.rawDate || b.dateText).localeCompare(a.rawDate || a.dateText);
+      });
+
+      this.logger.info(`Found ${releases.length} press releases (sorted by date)`);
       return releases;
     }, this.config.euronext.retryAttempts, this.config.euronext.retryDelayMs);
   }

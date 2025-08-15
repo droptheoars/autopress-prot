@@ -33,7 +33,10 @@ export class WebflowClient {
         isDraft: !this.config.webflow.publishImmediately,
         fieldData: {
           'name': pressRelease.title,
-          'slug': this.generateSlug(pressRelease.title)
+          'slug': this.generateSlug(pressRelease.title),
+          'date-2': this.formatDate(pressRelease.publishDate),
+          'pm-body-html': pressRelease.content,
+          'read-more-link': pressRelease.url
         }
       };
 
@@ -90,7 +93,7 @@ export class WebflowClient {
   }
 
   /**
-   * Check if an item already exists by press release ID
+   * Check if an item already exists by title (since we don't have a unique ID field)
    */
   async itemExists(pressReleaseId) {
     try {
@@ -98,14 +101,17 @@ export class WebflowClient {
         `${this.baseUrl}/collections/${this.collectionId}/items`,
         {
           headers: this.headers,
-          params: {
-            'fieldData[press-release-id]': pressReleaseId
-          },
           timeout: 30000
         }
       );
 
-      return response.data.items && response.data.items.length > 0;
+      // Check if any item has the same slug (which is generated from title)
+      const slug = this.generateSlug(pressReleaseId);
+      const existingItem = response.data.items?.find(item => 
+        item.fieldData?.slug === slug
+      );
+
+      return !!existingItem;
     } catch (error) {
       this.logger.warn(`Error checking if item exists: ${error.message}`);
       return false;
@@ -207,15 +213,15 @@ export class WebflowClient {
       try {
         this.logger.info(`Processing release: ${release.title} (ID: ${release.id})`);
         
-        // TEMPORARILY DISABLED - Check if item already exists
-        // const exists = await this.itemExists(release.id);
-        // if (exists) {
-        //   this.logger.info(`Skipping existing item: ${release.title}`);
-        //   results.skipped.push(release);
-        //   continue;
-        // }
+        // Check if item already exists
+        const exists = await this.itemExists(release.id);
+        if (exists) {
+          this.logger.info(`Skipping existing item: ${release.title}`);
+          results.skipped.push(release);
+          continue;
+        }
 
-        // Create new item (force creation for testing)
+        // Create new item
         const createdItem = await this.createItem(release);
         results.created.push({
           release,
