@@ -11,7 +11,7 @@
     "maxPages": 3,
     "retryAttempts": 3,
     "retryDelayMs": 2000,
-    "onlyRecentDays": 7
+    "onlyAfterDate": "2025-06-19"
   },
   "webflow": {
     "publishImmediately": false,

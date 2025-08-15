@@ -88,22 +88,24 @@ export class EuronextScraper {
         });
       }
 
-      // Filter to only recent releases (based on config)
-      const cutoffDays = this.config.euronext.onlyRecentDays || 7;
-      const cutoffDate = new Date();
-      cutoffDate.setDate(cutoffDate.getDate() - cutoffDays);
+      // Filter to only releases after the specified date (June 19, 2025)
+      const cutoffDateStr = this.config.euronext.onlyAfterDate || "2025-06-19";
+      const cutoffDate = new Date(cutoffDateStr);
 
       const recentReleases = releases.filter(release => {
         try {
           const releaseDate = new Date(release.rawDate || release.dateText);
           if (!isNaN(releaseDate.getTime())) {
-            return releaseDate >= cutoffDate;
+            const isAfterCutoff = releaseDate >= cutoffDate;
+            this.logger.debug(`Release "${release.title}" (${release.rawDate}) - After ${cutoffDateStr}? ${isAfterCutoff}`);
+            return isAfterCutoff;
           }
         } catch (error) {
-          // If we can't parse the date, include it to be safe
-          return true;
+          this.logger.warn(`Could not parse date for "${release.title}": ${release.rawDate}`);
+          // If we can't parse the date, exclude it to be safe
+          return false;
         }
-        return true; // Include if date parsing fails
+        return false; // Exclude if date parsing fails
       });
 
       // Sort releases by date (newest first)
@@ -120,7 +122,7 @@ export class EuronextScraper {
         return (b.rawDate || b.dateText).localeCompare(a.rawDate || a.dateText);
       });
 
-      this.logger.info(`Found ${releases.length} total releases, ${recentReleases.length} recent (last ${cutoffDays} days)`);
+      this.logger.info(`Found ${releases.length} total releases, ${recentReleases.length} after ${cutoffDateStr}`);
       return recentReleases;
     }, this.config.euronext.retryAttempts, this.config.euronext.retryDelayMs);
   }
