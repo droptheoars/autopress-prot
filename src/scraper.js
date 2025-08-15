@@ -88,6 +88,15 @@ export class EuronextScraper {
         });
       }
 
+      this.logger.info(`DEBUG: Found ${releases.length} total releases before filtering`);
+      if (releases.length > 0) {
+        this.logger.info(`DEBUG: First 3 raw releases:`, releases.slice(0, 3).map(r => ({
+          title: r.title,
+          dateText: r.dateText,
+          rawDate: r.rawDate
+        })));
+      }
+
       // Filter to only releases after the specified date (June 19, 2025)
       const cutoffDateStr = this.config.euronext.onlyAfterDate || "2025-06-19";
       const cutoffDate = new Date(cutoffDateStr);
