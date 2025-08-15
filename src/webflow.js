@@ -207,15 +207,17 @@ export class WebflowClient {
 
     for (const release of pressReleases) {
       try {
-        // Check if item already exists
-        const exists = await this.itemExists(release.id);
-        if (exists) {
-          this.logger.info(`Skipping existing item: ${release.title}`);
-          results.skipped.push(release);
-          continue;
-        }
+        this.logger.info(`Processing release: ${release.title} (ID: ${release.id})`);
+        
+        // TEMPORARILY DISABLED - Check if item already exists
+        // const exists = await this.itemExists(release.id);
+        // if (exists) {
+        //   this.logger.info(`Skipping existing item: ${release.title}`);
+        //   results.skipped.push(release);
+        //   continue;
+        // }
 
-        // Create new item
+        // Create new item (force creation for testing)
         const createdItem = await this.createItem(release);
         results.created.push({
           release,
@@ -227,6 +229,7 @@ export class WebflowClient {
 
       } catch (error) {
         this.logger.error(`Failed to create item for ${release.title}:`, error.message);
+        this.logger.error(`Error details:`, error.response?.data || error.stack);
         results.errors.push({
           release,
           error: error.message
