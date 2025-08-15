@@ -110,16 +110,25 @@ export class EuronextScraper {
 
       const recentReleases = releases.filter(release => {
         try {
-          const releaseDate = new Date(release.rawDate || release.dateText);
+          let dateStr = release.rawDate || release.dateText;
+          
+          // Handle Euronext date format: "27 Jun 2025\n07:45 CEST"
+          // Extract just the date part before the newline
+          if (dateStr.includes('\n')) {
+            dateStr = dateStr.split('\n')[0].trim();
+          }
+          
+          // Parse the date
+          const releaseDate = new Date(dateStr);
           if (!isNaN(releaseDate.getTime())) {
             const isAfterCutoff = releaseDate >= cutoffDate;
-            this.logger.info(`Release "${release.title.substring(0, 50)}" (${release.rawDate}) parsed as ${releaseDate.toISOString()} - After ${cutoffDateStr}? ${isAfterCutoff}`);
+            this.logger.info(`Release "${release.title.substring(0, 40)}" - Date: "${dateStr}" -> ${releaseDate.toISOString().split('T')[0]} - After ${cutoffDateStr}? ${isAfterCutoff}`);
             return isAfterCutoff;
           } else {
-            this.logger.warn(`Invalid date for "${release.title.substring(0, 50)}": "${release.rawDate}" could not be parsed`);
+            this.logger.warn(`Invalid date for "${release.title.substring(0, 40)}": "${dateStr}" could not be parsed`);
           }
         } catch (error) {
-          this.logger.warn(`Could not parse date for "${release.title.substring(0, 50)}": ${release.rawDate}`);
+          this.logger.warn(`Error parsing date for "${release.title.substring(0, 40)}": ${release.rawDate} - ${error.message}`);
         }
         return false; // Exclude if date parsing fails
       });
