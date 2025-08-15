@@ -1,0 +1,140 @@
+name: Euronext Press Release Scraper
+
+on:
+  schedule:
+    # Run every 3 minutes during business hours (7 AM - 6 PM UTC)
+    # Note: GitHub Actions uses UTC time
+    - cron: '*/3 7-17 * * 1-5'  # Monday to Friday, 7 AM to 5:57 PM UTC
+    
+  # Allow manual triggering
+  workflow_dispatch:
+    inputs:
+      test_mode:
+        description: 'Run in test mode (limited results)'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  scrape-and-update:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Install Puppeteer dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          gconf-service \
+          libasound2 \
+          libatk1.0-0 \
+          libc6 \
+          libcairo2 \
+          libcups2 \
+          libdbus-1-3 \
+          libexpat1 \
+          libfontconfig1 \
+          libgcc1 \
+          libgconf-2-4 \
+          libgdk-pixbuf2.0-0 \
+          libglib2.0-0 \
+          libgtk-3-0 \
+          libnspr4 \
+          libpango-1.0-0 \
+          libpangocairo-1.0-0 \
+          libstdc++6 \
+          libx11-6 \
+          libx11-xcb1 \
+          libxcb1 \
+          libxcomposite1 \
+          libxcursor1 \
+          libxdamage1 \
+          libxext6 \
+          libxfixes3 \
+          libxi6 \
+          libxrandr2 \
+          libxrender1 \
+          libxss1 \
+          libxtst6 \
+          ca-certificates \
+          fonts-liberation \
+          libappindicator1 \
+          libnss3 \
+          lsb-release \
+          xdg-utils \
+          wget
+          
+    - name: Check if within scheduled hours
+      id: check_time
+      run: |
+        current_hour=$(date +%H)
+        echo "Current hour (UTC): $current_hour"
+        
+        # Convert UTC to Amsterdam time (CET/CEST)
+        amsterdam_hour=$(TZ='Europe/Amsterdam' date +%H)
+        echo "Amsterdam hour: $amsterdam_hour"
+        
+        # Check if between 7 AM and 6 PM Amsterdam time
+        if [ $amsterdam_hour -ge 7 ] && [ $amsterdam_hour -lt 18 ]; then
+          echo "within_hours=true" >> $GITHUB_OUTPUT
+          echo "Within scheduled hours (7 AM - 6 PM Amsterdam time)"
+        else
+          echo "within_hours=false" >> $GITHUB_OUTPUT
+          echo "Outside scheduled hours"
+        fi
+        
+    - name: Run scraper
+      if: steps.check_time.outputs.within_hours == 'true' || github.event_name == 'workflow_dispatch'
+      env:
+        WEBFLOW_API_TOKEN: ${{ secrets.WEBFLOW_API_TOKEN }}
+        WEBFLOW_SITE_ID: ${{ secrets.WEBFLOW_SITE_ID }}
+        WEBFLOW_COLLECTION_ID: ${{ secrets.WEBFLOW_COLLECTION_ID }}
+        TEST_MODE: ${{ github.event.inputs.test_mode || 'false' }}
+      run: |
+        if [ "$TEST_MODE" = "true" ]; then
+          echo "Running in test mode"
+          node src/index.js --test
+        else
+          echo "Running in production mode"
+          node src/index.js
+        fi
+        
+    - name: Upload logs on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: scraper-logs-${{ github.run_id }}
+        path: |
+          *.log
+          data/processed.json
+        retention-days: 7
+        
+    - name: Commit updated processed.json
+      if: success()
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+        if [ -n "$(git status --porcelain data/processed.json)" ]; then
+          git add data/processed.json
+          git commit -m "Update processed releases data [skip ci]"
+          git push
+        else
+          echo "No changes to commit"
+        fi
+        
+    - name: Notify on failure
+      if: failure()
+      run: |
+        echo "::error::Scraper failed to run successfully. Check the logs for details."

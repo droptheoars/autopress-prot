@@ -1,0 +1,24 @@
+{
+  "schedule": {
+    "startHour": 7,
+    "endHour": 18,
+    "intervalMinutes": 3,
+    "timezone": "Europe/Amsterdam"
+  },
+  "euronext": {
+    "baseUrl": "https://live.euronext.com",
+    "listUrl": "https://live.euronext.com/en/listview/company-press-release/62020",
+    "maxPages": 3,
+    "retryAttempts": 3,
+    "retryDelayMs": 2000
+  },
+  "webflow": {
+    "publishImmediately": true,
+    "retryAttempts": 3,
+    "retryDelayMs": 1000
+  },
+  "logging": {
+    "level": "info",
+    "enableConsole": true
+  }
+}
