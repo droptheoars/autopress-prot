@@ -88,8 +88,26 @@ export class EuronextScraper {
         });
       }
 
-      // Sort releases by date (newest first) - try to parse dates for better sorting
-      releases.sort((a, b) => {
+      // Filter to only recent releases (based on config)
+      const cutoffDays = this.config.euronext.onlyRecentDays || 7;
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - cutoffDays);
+
+      const recentReleases = releases.filter(release => {
+        try {
+          const releaseDate = new Date(release.rawDate || release.dateText);
+          if (!isNaN(releaseDate.getTime())) {
+            return releaseDate >= cutoffDate;
+          }
+        } catch (error) {
+          // If we can't parse the date, include it to be safe
+          return true;
+        }
+        return true; // Include if date parsing fails
+      });
+
+      // Sort releases by date (newest first)
+      recentReleases.sort((a, b) => {
         try {
           const dateA = new Date(a.rawDate || a.dateText);
           const dateB = new Date(b.rawDate || b.dateText);
@@ -102,8 +120,8 @@ export class EuronextScraper {
         return (b.rawDate || b.dateText).localeCompare(a.rawDate || a.dateText);
       });
 
-      this.logger.info(`Found ${releases.length} press releases (sorted by date)`);
-      return releases;
+      this.logger.info(`Found ${releases.length} total releases, ${recentReleases.length} recent (last ${cutoffDays} days)`);
+      return recentReleases;
     }, this.config.euronext.retryAttempts, this.config.euronext.retryDelayMs);
   }
 
