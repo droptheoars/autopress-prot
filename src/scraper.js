@@ -292,9 +292,55 @@ export class EuronextScraper {
             }
           }
 
-          // Wrap in basic HTML structure
+          // Clean and format the content
           if (contentText) {
-            return `<div class="press-release-content">\n  <p>${contentText.replace(/\n/g, '</p>\n  <p>')}</p>\n</div>`;
+            // Clean up the text
+            let cleanText = contentText
+              .replace(/\s+/g, ' ')           // Replace multiple spaces with single space
+              .replace(/\n\s*\n/g, '\n')      // Remove empty lines
+              .trim();
+            
+            // Split into logical paragraphs and sentences
+            const sentences = cleanText.split(/[.!?]+/).filter(s => s.trim().length > 0);
+            const paragraphs = [];
+            let currentParagraph = '';
+            
+            for (const sentence of sentences) {
+              const trimmedSentence = sentence.trim();
+              if (trimmedSentence.length === 0) continue;
+              
+              // Add period back if it doesn't end with punctuation
+              const formattedSentence = trimmedSentence + 
+                (trimmedSentence.match(/[.!?]$/) ? '' : '.');
+              
+              // Start new paragraph for certain patterns or if current is getting long
+              if (currentParagraph.length > 200 || 
+                  trimmedSentence.toLowerCase().includes('more information') ||
+                  trimmedSentence.toLowerCase().includes('contact') ||
+                  trimmedSentence.toLowerCase().includes('for further')) {
+                
+                if (currentParagraph.trim()) {
+                  paragraphs.push(currentParagraph.trim());
+                }
+                currentParagraph = formattedSentence + ' ';
+              } else {
+                currentParagraph += formattedSentence + ' ';
+              }
+            }
+            
+            // Add the last paragraph
+            if (currentParagraph.trim()) {
+              paragraphs.push(currentParagraph.trim());
+            }
+            
+            // Create clean HTML structure
+            if (paragraphs.length > 0) {
+              const htmlParagraphs = paragraphs
+                .map(p => `  <p>${p}</p>`)
+                .join('\n');
+              
+              return `<div class="press-release-content">\n${htmlParagraphs}\n</div>`;
+            }
           }
 
           return null;
@@ -303,10 +349,12 @@ export class EuronextScraper {
         await browser.close();
 
         if (content) {
-          this.logger.info(`Successfully extracted modal content for: ${release.title} (${content.length} characters)`);
+          // Final cleanup and formatting
+          const cleanedContent = this.cleanupContent(content);
+          this.logger.info(`Successfully extracted modal content for: ${release.title} (${cleanedContent.length} characters)`);
           return {
             ...release,
-            content: content,
+            content: cleanedContent,
             publishDate: release.dateText,
             scrapedAt: new Date().toISOString()
           };
@@ -370,5 +418,34 @@ export class EuronextScraper {
       this.logger.error('Failed to scrape press releases:', error.message);
       throw error;
     }
+  }
+
+  /**
+   * Clean up and format content for better readability
+   */
+  cleanupContent(content) {
+    if (!content) return content;
+
+    return content
+      // Fix common HTML issues
+      .replace(/\s+</g, '<')              // Remove spaces before tags
+      .replace(/>\s+/g, '>')              // Remove spaces after tags
+      .replace(/\s{2,}/g, ' ')            // Multiple spaces to single space
+      
+      // Fix punctuation spacing
+      .replace(/\s+([.!?])/g, '$1')       // Remove spaces before punctuation
+      .replace(/([.!?])\s*([A-Z])/g, '$1 $2')  // Ensure space after punctuation before capital letter
+      
+      // Clean up paragraph content
+      .replace(/<p>\s*<\/p>/g, '')        // Remove empty paragraphs
+      .replace(/<p>\s+/g, '<p>')          // Remove leading spaces in paragraphs
+      .replace(/\s+<\/p>/g, '</p>')       // Remove trailing spaces in paragraphs
+      
+      // Ensure proper sentence endings
+      .replace(/([a-z])\s*<\/p>/g, '$1.</p>')  // Add period if paragraph doesn't end with punctuation
+      
+      // Final cleanup
+      .replace(/\n\s*\n/g, '\n')          // Remove empty lines
+      .trim();
   }
 }
