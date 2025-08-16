@@ -36,7 +36,7 @@ export class WebflowClient {
           'slug': this.generateUniqueSlug(pressRelease.title, pressRelease.publishDate),
           'date-2': this.formatDate(pressRelease.publishDate),
           'pm-body-html': pressRelease.content,
-          'read-more-link': pressRelease.url
+          'read-more-link': 'https://live.euronext.com/en/listview/company-press-release/62020?page=0'
         }
       };
 
@@ -169,7 +169,7 @@ export class WebflowClient {
       const date = new Date(dateString);
       if (isNaN(date.getTime())) {
         // If parsing fails, try to extract date from common formats
-        const dateMatch = dateString.match(/(\\d{1,2})\\s+(\\w{3})\\s+(\\d{4})/);
+        const dateMatch = dateString.match(/(\d{1,2})\s+(\w{3})\s+(\d{4})/);
         if (dateMatch) {
           const [, day, month, year] = dateMatch;
           const monthMap = {
@@ -255,8 +255,8 @@ export class WebflowClient {
           webflowItem: createdItem
         });
 
-        // Add delay between requests to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Add delay between requests to avoid rate limiting (Webflow allows 60 requests/minute)
+        await new Promise(resolve => setTimeout(resolve, 2000)); // 2 seconds = max 30 requests/minute
 
       } catch (error) {
         this.logger.error(`Failed to create item for ${release.title}:`, error.message);

@@ -14,9 +14,9 @@ async function testScraper() {
     const scraper = new EuronextScraper(config);
     console.log('✅ Scraper initialized');
 
-    // Get latest releases (just 3 for testing)
+    // Get latest releases (get 7 to find one that hasn't been uploaded yet)
     console.log('📡 Fetching latest releases...');
-    const releases = await scraper.getLatestReleases(3);
+    const releases = await scraper.getLatestReleases(7);
     
     if (releases.length === 0) {
       console.log('❌ No releases found (likely outside date range or no new releases)');

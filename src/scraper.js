@@ -182,9 +182,10 @@ export class EuronextScraper {
     }
 
     try {
-      // Launch Puppeteer browser
+      // Launch Puppeteer browser with timeout protection
       const browser = await puppeteer.launch({
         headless: 'new',
+        timeout: 30000,  // 30 second timeout for browser launch
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -192,7 +193,9 @@ export class EuronextScraper {
           '--disable-accelerated-2d-canvas',
           '--no-first-run',
           '--no-zygote',
-          '--disable-gpu'
+          '--disable-gpu',
+          '--disable-web-security',  // Help with CORS issues
+          '--disable-features=VizDisplayCompositor'
         ]
       });
 
@@ -204,11 +207,26 @@ export class EuronextScraper {
 
       this.logger.info(`Loading Euronext list page to access modal for: ${release.title}`);
       
-      // Navigate to the list page first
-      await page.goto(this.config.euronext.listUrl, { 
-        waitUntil: 'networkidle2',
-        timeout: 30000 
-      });
+      // Navigate to the list page first with multiple retry strategies
+      const maxRetries = 3;
+      let pageLoaded = false;
+      
+      for (let i = 0; i < maxRetries && !pageLoaded; i++) {
+        try {
+          await page.goto(this.config.euronext.listUrl, { 
+            waitUntil: 'networkidle2',
+            timeout: 30000 
+          });
+          pageLoaded = true;
+        } catch (error) {
+          this.logger.warn(`Page load attempt ${i + 1} failed: ${error.message}`);
+          if (i < maxRetries - 1) {
+            await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retry
+          } else {
+            throw error;
+          }
+        }
+      }
 
       // Wait for page to load
       await new Promise(resolve => setTimeout(resolve, 3000));
@@ -219,6 +237,12 @@ export class EuronextScraper {
       const linkSelector = `a[data-node-nid="${release.nodeId}"]`;
       
       try {
+        // Check if the link exists first
+        const linkExists = await page.$(linkSelector);
+        if (!linkExists) {
+          throw new Error(`Press release link not found for node ID: ${release.nodeId}`);
+        }
+        
         await page.waitForSelector(linkSelector, { timeout: 10000 });
         await page.click(linkSelector);
         
@@ -293,11 +317,12 @@ export class EuronextScraper {
           }
 
           // Clean and format the content
-          if (contentText) {
+          if (contentText && contentText.length > 10) {
             // Clean up the text
             let cleanText = contentText
               .replace(/\s+/g, ' ')           // Replace multiple spaces with single space
               .replace(/\n\s*\n/g, '\n')      // Remove empty lines
+              .replace(/[^\x20-\x7E\s]/g, '') // Remove non-printable characters
               .trim();
             
             // Split into logical paragraphs and sentences
@@ -336,10 +361,18 @@ export class EuronextScraper {
             // Create clean HTML structure
             if (paragraphs.length > 0) {
               const htmlParagraphs = paragraphs
+                .filter(p => p.length > 5) // Remove very short paragraphs
                 .map(p => `  <p>${p}</p>`)
                 .join('\n');
               
-              return `<div class="press-release-content">\n${htmlParagraphs}\n</div>`;
+              if (htmlParagraphs.length > 0) {
+                return `<div class="press-release-content">\n${htmlParagraphs}\n</div>`;
+              }
+            }
+            
+            // Fallback if paragraph processing fails
+            if (cleanText.length > 20) {
+              return `<div class="press-release-content">\n  <p>${cleanText}</p>\n</div>`;
             }
           }
 
@@ -366,7 +399,17 @@ export class EuronextScraper {
         this.logger.warn(`Could not find or click link for ${release.title}: ${selectorError.message}`);
       }
 
-      await browser.close();
+      // Always close browser and page to prevent memory leaks
+      try {
+        if (page && !page.isClosed()) {
+          await page.close();
+        }
+        if (browser) {
+          await browser.close();
+        }
+      } catch (closeError) {
+        this.logger.warn(`Error closing browser: ${closeError.message}`);
+      }
 
       // Fallback to basic content
       return {
