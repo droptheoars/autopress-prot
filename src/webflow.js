@@ -33,7 +33,7 @@ export class WebflowClient {
         isDraft: !this.config.webflow.publishImmediately,
         fieldData: {
           'name': pressRelease.title,
-          'slug': this.generateSlug(pressRelease.title),
+          'slug': this.generateUniqueSlug(pressRelease.title, pressRelease.publishDate),
           'date-2': this.formatDate(pressRelease.publishDate),
           'pm-body-html': pressRelease.content,
           'read-more-link': pressRelease.url
@@ -93,9 +93,9 @@ export class WebflowClient {
   }
 
   /**
-   * Check if an item already exists by title (since we don't have a unique ID field)
+   * Check if an item already exists by unique release ID (title + date)
    */
-  async itemExists(pressReleaseId) {
+  async itemExists(pressRelease) {
     try {
       const response = await axios.get(
         `${this.baseUrl}/collections/${this.collectionId}/items`,
@@ -105,11 +105,15 @@ export class WebflowClient {
         }
       );
 
-      // Check if any item has the same slug (which is generated from title)
-      const slug = this.generateSlug(pressReleaseId);
+      // Generate unique slug using title + date to handle duplicate titles on different dates
+      const uniqueSlug = this.generateUniqueSlug(pressRelease.title, pressRelease.publishDate);
       const existingItem = response.data.items?.find(item => 
-        item.fieldData?.slug === slug
+        item.fieldData?.slug === uniqueSlug
       );
+
+      if (existingItem) {
+        this.logger.info(`Found existing item with same title and date: ${pressRelease.title}`);
+      }
 
       return !!existingItem;
     } catch (error) {
@@ -187,7 +191,7 @@ export class WebflowClient {
   }
 
   /**
-   * Generate URL-friendly slug
+   * Generate URL-friendly slug (legacy method)
    */
   generateSlug(title) {
     return title
@@ -197,6 +201,29 @@ export class WebflowClient {
       .replace(/-+/g, '-')
       .trim('-')
       .substring(0, 100);
+  }
+
+  /**
+   * Generate unique slug using title + date to handle duplicate titles
+   */
+  generateUniqueSlug(title, publishDate) {
+    // Extract date portion for uniqueness
+    let datePart = '';
+    try {
+      const date = new Date(publishDate);
+      if (!isNaN(date.getTime())) {
+        datePart = `-${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      }
+    } catch (error) {
+      // Fallback to timestamp if date parsing fails
+      datePart = `-${Date.now()}`;
+    }
+
+    const baseSlug = this.generateSlug(title);
+    const uniqueSlug = (baseSlug + datePart).substring(0, 100);
+    
+    this.logger.info(`Generated unique slug: "${uniqueSlug}" from title: "${title}" and date: "${publishDate}"`);
+    return uniqueSlug;
   }
 
   /**
@@ -214,7 +241,7 @@ export class WebflowClient {
         this.logger.info(`Processing release: ${release.title} (ID: ${release.id})`);
         
         // Check if item already exists
-        const exists = await this.itemExists(release.id);
+        const exists = await this.itemExists(release);
         if (exists) {
           this.logger.info(`Skipping existing item: ${release.title}`);
           results.skipped.push(release);
