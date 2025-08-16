@@ -3,7 +3,8 @@
     "startHour": 6,
     "endHour": 23,
     "intervalMinutes": 2,
-    "timezone": "Europe/Oslo"
+    "timezone": "Europe/Oslo",
+    "daysOfWeek": "Monday-Sunday"
   },
   "euronext": {
     "baseUrl": "https://live.euronext.com",
