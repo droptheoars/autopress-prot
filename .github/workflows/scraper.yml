@@ -2,9 +2,9 @@ name: Euronext Press Release Scraper
 
 on:
   schedule:
-    # Run every 3 minutes during business hours (7 AM - 6 PM UTC)
-    # Note: GitHub Actions uses UTC time
-    - cron: '*/3 7-17 * * 1-5'  # Monday to Friday, 7 AM to 5:57 PM UTC
+    # Run every 2 minutes during business hours (6 AM - 9 PM Amsterdam time)
+    # Note: GitHub Actions uses UTC time, Amsterdam is UTC+1/+2
+    - cron: '*/2 4-19 * * 1-5'  # Monday to Friday, covers 6 AM - 9 PM Amsterdam
     
   # Allow manual triggering
   workflow_dispatch:
@@ -42,10 +42,10 @@ jobs:
         amsterdam_hour=$(TZ='Europe/Amsterdam' date +%H)
         echo "Amsterdam hour: $amsterdam_hour"
         
-        # Check if between 7 AM and 6 PM Amsterdam time
-        if [ $amsterdam_hour -ge 7 ] && [ $amsterdam_hour -lt 18 ]; then
+        # Check if between 6 AM and 9 PM Amsterdam time
+        if [ $amsterdam_hour -ge 6 ] && [ $amsterdam_hour -lt 21 ]; then
           echo "within_hours=true" >> $GITHUB_OUTPUT
-          echo "Within scheduled hours (7 AM - 6 PM Amsterdam time)"
+          echo "Within scheduled hours (6 AM - 9 PM Amsterdam time)"
         else
           echo "within_hours=false" >> $GITHUB_OUTPUT
           echo "Outside scheduled hours"

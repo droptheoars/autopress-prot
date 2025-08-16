@@ -1,8 +1,8 @@
 {
   "schedule": {
-    "startHour": 7,
-    "endHour": 18,
-    "intervalMinutes": 3,
+    "startHour": 6,
+    "endHour": 21,
+    "intervalMinutes": 2,
     "timezone": "Europe/Amsterdam"
   },
   "euronext": {
