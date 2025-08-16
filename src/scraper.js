@@ -1,5 +1,6 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import puppeteer from 'puppeteer';
 import { retry, Logger, cleanHtmlContent, generateReleaseId } from './utils.js';
 
 export class EuronextScraper {
@@ -51,12 +52,21 @@ export class EuronextScraper {
           
           let title = '';
           let link = '';
+          let nodeId = '';
           
           for (const titleSel of titleSelectors) {
             const titleEl = $el.find(titleSel).first();
             if (titleEl.length && titleEl.text().trim()) {
               title = titleEl.text().trim();
               link = titleEl.attr('href') || titleEl.find('a').attr('href') || $el.find('a').first().attr('href');
+              
+              // Extract node ID for modal-based press releases
+              const dataNodeNid = titleEl.attr('data-node-nid') || titleEl.find('a').attr('data-node-nid');
+              if (dataNodeNid) {
+                nodeId = dataNodeNid;
+                // Construct proper URL using node ID
+                link = `https://live.euronext.com/en/pd_press/${nodeId}`;
+              }
               break;
             }
           }
@@ -81,6 +91,7 @@ export class EuronextScraper {
               title,
               dateText: dateText || 'Unknown date',
               url: link ? (link.startsWith('http') ? link : `${this.config.euronext.baseUrl}${link}`) : '#',
+              nodeId: nodeId || null,
               id: generateReleaseId(title, dateText || 'unknown'),
               rawDate: dateText // Keep for sorting
             });
@@ -155,19 +166,141 @@ export class EuronextScraper {
   }
 
   /**
-   * Fetch detailed content from individual press release page
+   * Fetch detailed content from press release modal using Puppeteer
    */
   async fetchPressReleaseContent(release) {
     this.logger.info(`Fetching content for: ${release.title}`);
     
-    // For now, return basic content without full page scraping
-    // This avoids the complex Puppeteer setup and focuses on getting the automation working
-    return {
-      ...release,
-      content: `<h2>${release.title}</h2><p>Press release content from ${release.dateText}. <a href="${release.url}">Read full article</a></p>`,
-      publishDate: release.dateText,
-      scrapedAt: new Date().toISOString()
-    };
+    if (!release.nodeId) {
+      this.logger.warn(`No node ID for release: ${release.title}`);
+      return {
+        ...release,
+        content: `<h2>${release.title}</h2><p>Press release content from ${release.dateText}. <a href="${release.url}">Read full article</a></p>`,
+        publishDate: release.dateText,
+        scrapedAt: new Date().toISOString()
+      };
+    }
+
+    try {
+      // Launch Puppeteer browser
+      const browser = await puppeteer.launch({
+        headless: 'new',
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--no-zygote',
+          '--disable-gpu'
+        ]
+      });
+
+      const page = await browser.newPage();
+      
+      // Set user agent and viewport
+      await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+      await page.setViewport({ width: 1920, height: 1080 });
+
+      this.logger.info(`Loading Euronext list page to access modal for: ${release.title}`);
+      
+      // Navigate to the list page first
+      await page.goto(this.config.euronext.listUrl, { 
+        waitUntil: 'networkidle2',
+        timeout: 30000 
+      });
+
+      // Wait for page to load
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      this.logger.info(`Clicking on press release: ${release.title} (Node ID: ${release.nodeId})`);
+
+      // Find and click the press release link to open the modal
+      const linkSelector = `a[data-node-nid="${release.nodeId}"]`;
+      
+      try {
+        await page.waitForSelector(linkSelector, { timeout: 10000 });
+        await page.click(linkSelector);
+        
+        // Wait for modal to open
+        const modalSelector = `#CompanyPressRelease-${release.nodeId}`;
+        await page.waitForSelector(modalSelector, { timeout: 10000 });
+        
+        // Wait a bit more for content to load
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        this.logger.info(`Modal opened, extracting content for: ${release.title}`);
+
+        // Extract content from the modal
+        const content = await page.evaluate((nodeId) => {
+          const modal = document.querySelector(`#CompanyPressRelease-${nodeId}`);
+          if (!modal) return null;
+
+          // Try to find the main content within the modal
+          const contentSelectors = [
+            '.modal-body',
+            '.press-release-content', 
+            '.content',
+            '.row.mb-5',
+            '.col-12'
+          ];
+
+          let contentElement = null;
+          for (const selector of contentSelectors) {
+            const element = modal.querySelector(selector);
+            if (element) {
+              contentElement = element;
+              break;
+            }
+          }
+
+          if (!contentElement) {
+            contentElement = modal;
+          }
+
+          // Return the outerHTML as requested
+          return contentElement ? contentElement.outerHTML : null;
+        }, release.nodeId);
+
+        await browser.close();
+
+        if (content) {
+          this.logger.info(`Successfully extracted modal content for: ${release.title} (${content.length} characters)`);
+          return {
+            ...release,
+            content: content,
+            publishDate: release.dateText,
+            scrapedAt: new Date().toISOString()
+          };
+        } else {
+          this.logger.warn(`No modal content found for: ${release.title}`);
+        }
+
+      } catch (selectorError) {
+        this.logger.warn(`Could not find or click link for ${release.title}: ${selectorError.message}`);
+      }
+
+      await browser.close();
+
+      // Fallback to basic content
+      return {
+        ...release,
+        content: `<h2>${release.title}</h2><p>Press release content from ${release.dateText}. <a href="${release.url}">Read full article</a></p>`,
+        publishDate: release.dateText,
+        scrapedAt: new Date().toISOString()
+      };
+
+    } catch (error) {
+      this.logger.error(`Failed to fetch modal content for ${release.title}:`, error.message);
+      
+      // Fallback to basic content
+      return {
+        ...release,
+        content: `<h2>${release.title}</h2><p>Press release content from ${release.dateText}. <a href="${release.url}">Read full article</a></p>`,
+        publishDate: release.dateText,
+        scrapedAt: new Date().toISOString()
+      };
+    }
   }
 
   /**
