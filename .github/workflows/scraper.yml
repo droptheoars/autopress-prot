@@ -2,9 +2,9 @@ name: Euronext Press Release Scraper
 
 on:
   schedule:
-    # Run every 2 minutes during extended hours (6 AM - 11:59 PM Norwegian time)  
+    # Run every 5 minutes during extended hours (6 AM - 11:59 PM Norwegian time)  
     # Note: GitHub Actions uses UTC time, Norway is UTC+1/+2
-    - cron: '*/2 4-21 * * *'  # Every day, covers 6 AM - 11:59 PM Norwegian
+    - cron: '*/5 4-21 * * *'  # Every 5 minutes, covers 6 AM - 11:59 PM Norwegian
     
   # Allow manual triggering
   workflow_dispatch:

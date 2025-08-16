@@ -2,7 +2,7 @@
   "schedule": {
     "startHour": 6,
     "endHour": 23,
-    "intervalMinutes": 2,
+    "intervalMinutes": 5,
     "timezone": "Europe/Oslo",
     "daysOfWeek": "Monday-Sunday"
   },
