@@ -1,9 +1,9 @@
 {
   "schedule": {
     "startHour": 6,
-    "endHour": 21,
+    "endHour": 23,
     "intervalMinutes": 2,
-    "timezone": "Europe/Amsterdam"
+    "timezone": "Europe/Oslo"
   },
   "euronext": {
     "baseUrl": "https://live.euronext.com",
