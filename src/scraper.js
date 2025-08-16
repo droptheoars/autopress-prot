@@ -236,30 +236,68 @@ export class EuronextScraper {
           const modal = document.querySelector(`#CompanyPressRelease-${nodeId}`);
           if (!modal) return null;
 
-          // Try to find the main content within the modal
+          // Look for the actual press release content text only
+          // This typically contains the main message/content of the press release
           const contentSelectors = [
-            '.modal-body',
-            '.press-release-content', 
-            '.content',
-            '.row.mb-5',
-            '.col-12'
+            '.modal-body .row:nth-child(3) .col-12',  // Often the 3rd row contains main content
+            '.modal-body .content-text',
+            '.modal-body p',
+            '.press-release-body',
+            '.news-content',
+            '.main-text'
           ];
 
-          let contentElement = null;
+          let contentText = '';
+          
+          // First try to find a specific content container
           for (const selector of contentSelectors) {
-            const element = modal.querySelector(selector);
-            if (element) {
-              contentElement = element;
-              break;
+            const elements = modal.querySelectorAll(selector);
+            for (const element of elements) {
+              const text = element.textContent?.trim();
+              // Look for substantial content (not just metadata)
+              if (text && text.length > 50 && !text.includes('ISIN') && !text.includes('Symbol') && !text.includes('Source')) {
+                contentText = text;
+                break;
+              }
+            }
+            if (contentText) break;
+          }
+
+          // If no specific content found, extract all text and filter
+          if (!contentText) {
+            const modalBody = modal.querySelector('.modal-body');
+            if (modalBody) {
+              const allText = modalBody.textContent || '';
+              const lines = allText.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+              
+              // Find content lines (skip metadata)
+              const contentLines = lines.filter(line => {
+                return line.length > 20 &&
+                       !line.includes('ISIN') &&
+                       !line.includes('Symbol') &&
+                       !line.includes('Source') &&
+                       !line.includes('Provider') &&
+                       !line.includes('Market') &&
+                       !line.includes('Company Name') &&
+                       !line.includes('Subscribe') &&
+                       !line.match(/^\d{2}\s\w{3}\s\d{4}/) && // Date pattern
+                       !line.includes('Oslo Børs') &&
+                       !line.includes('Euronext');
+              });
+              
+              // Take the main content lines
+              if (contentLines.length > 0) {
+                contentText = contentLines.join('\n');
+              }
             }
           }
 
-          if (!contentElement) {
-            contentElement = modal;
+          // Wrap in basic HTML structure
+          if (contentText) {
+            return `<div class="press-release-content">\n  <p>${contentText.replace(/\n/g, '</p>\n  <p>')}</p>\n</div>`;
           }
 
-          // Return the outerHTML as requested
-          return contentElement ? contentElement.outerHTML : null;
+          return null;
         }, release.nodeId);
 
         await browser.close();

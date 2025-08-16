@@ -14,9 +14,9 @@ async function testScraper() {
     const scraper = new EuronextScraper(config);
     console.log('✅ Scraper initialized');
 
-    // Get latest releases (just 1 for testing)
+    // Get latest releases (just 3 for testing)
     console.log('📡 Fetching latest releases...');
-    const releases = await scraper.getLatestReleases(1);
+    const releases = await scraper.getLatestReleases(3);
     
     if (releases.length === 0) {
       console.log('❌ No releases found (likely outside date range or no new releases)');
@@ -24,11 +24,14 @@ async function testScraper() {
     }
 
     console.log(`✅ Found ${releases.length} release(s)`);
-    console.log('📄 Release details:', {
-      title: releases[0].title,
-      date: releases[0].publishDate,
-      url: releases[0].url,
-      contentLength: releases[0].content ? releases[0].content.length : 0
+    releases.forEach((release, index) => {
+      console.log(`📄 Release ${index + 1}:`, {
+        title: release.title,
+        date: release.publishDate,
+        url: release.url,
+        contentLength: release.content ? release.content.length : 0,
+        contentPreview: release.content ? release.content.substring(0, 200) + '...' : 'No content'
+      });
     });
 
     // Test Webflow upload if environment variables are set
